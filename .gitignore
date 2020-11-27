@@ -1,0 +1,10 @@
+data
+_.csv
+Building_GCN.ipynb
+neuralcoref
+spektral
+.ipynb_checkpoints
+.virtual_documents
+.vscode
+_.csv
+data/dense_relations.csv
