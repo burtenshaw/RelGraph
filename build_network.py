@@ -92,7 +92,7 @@ node_map['color'] = palettes.magma(len(node_map))
 
 _clusters = edges.edge.drop_duplicates().to_list()
 edge_map = pd.DataFrame(index=_clusters)
-edge_map['typeText'] = [str(int(x)) for x in _clusters]
+edge_map['typeText'] = ['cluster%s' % int(x) for x in _clusters]
 edge_map['shapeId'] = edge_map.typeText.apply(lambda x : '#%s' % x)
 edge_map['color'] = palettes.viridis(len(edge_map))
 # edges = edges.merge(edge_map, how='left', left_on='edge', right_index=True)
