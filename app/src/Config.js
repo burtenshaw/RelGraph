@@ -22,8 +22,8 @@ var EdgeTypes = {}
 
 config.EdgeTypes.map( type => {
     type.shape = (
-            <symbol viewBox="0 0 50 50" id={type.shapeId} key="0">
-                <circle cx="25" cy="25" r="8" fill={type.color} > </circle>
+            <symbol viewBox="0 0 50 50" id={type.typeText} key="0">
+                <circle cx="100" cy="100" r="8" fill={type.color} > </circle>
             </symbol>
     )
     EdgeTypes[type.typeText] = type
