@@ -4,14 +4,26 @@ import { InteractiveForceGraph, ForceGraph, ForceGraphNode, ForceGraphLink} from
 import Container from 'react-bootstrap/Container';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
+import PotterConfig from './Config';
+
+import {
+  GraphView, // required
+  Edge, // optional
+  type IEdge, // optional
+  Node, // optional
+  type INode, // optional
+  type LayoutEngineType, // required to change the layoutEngineType, otherwise optional
+  BwdlTransformer, // optional, Example JSON transformer
+  GraphUtils // optional, useful utility functions
+} from 'react-digraph';
 
 
 var data = JSON.parse(require('./data.json'));
 
-
-// const NODE_KEY = "id"       // Allows D3 to correctly update DOM
+const NODE_KEY = "id"       // Allows D3 to correctly update DOM
 
 class Graph extends React.Component {
+
   constructor(props) {
     super(props);
 
@@ -21,29 +33,36 @@ class Graph extends React.Component {
     }
   }
 
-
+  /* Define custom graph editing methods here */
 
   render() {
     const nodes = this.state.graph.nodes;
     const edges = this.state.graph.edges;
-    return (
-      <Container>
-      <InteractiveForceGraph
-            simulationOptions={{ height: 800, width: 800 }}
-            labelAttr="label"
-            highlightDependencies
-            // onSelectNode={(node) => console.log(node)}
-          >
-      {nodes.map(n => {
-        console.log(n)
-        return ( <ForceGraphNode label = {n.title} node={{ id: n.id }} fill={n.color} className={n.class}/>)
-      })
-    }
-        {edges.map(e => {
-        return (<ForceGraphLink link={{ source: e.source, target: e.target }} stroke={e.color} className={e.class}/>) 
-      })}
+    const selected = this.state.selected;
 
-      </InteractiveForceGraph>
+    const NodeTypes = PotterConfig.NodeTypes;
+    const NodeSubtypes = PotterConfig.NodeSubtypes;
+    const EdgeTypes = PotterConfig.EdgeTypes;
+
+    return (
+      <Container id='graph' style={{height: '1000px'}}>
+
+        <GraphView  ref='GraphView'
+                    nodeKey={NODE_KEY}
+                    nodes={nodes}
+                    edges={edges}
+                    selected={selected}
+                    nodeTypes={NodeTypes}
+                    nodeSubtypes={NodeSubtypes}
+                    edgeTypes={EdgeTypes}
+                    onSelectNode={this.onSelectNode}
+                    onCreateNode={this.onCreateNode}
+                    onUpdateNode={this.onUpdateNode}
+                    onDeleteNode={this.onDeleteNode}
+                    onSelectEdge={this.onSelectEdge}
+                    onCreateEdge={this.onCreateEdge}
+                    onSwapEdge={this.onSwapEdge}
+                    onDeleteEdge={this.onDeleteEdge}/>
       </Container>
     );
   }
