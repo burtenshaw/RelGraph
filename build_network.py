@@ -60,7 +60,8 @@ nodes = nodes[['x','y','title', 'life_stage']].rename(columns = {'life_stage':'t
 nodes = nodes.dropna()
 nodes['id'] = nodes.index
 
-edges['type'] = edges.edge 
+clu = lambda x : 'cluster%s' % int(x)
+edges['type'] = edges.edge.apply(clu)
 normo = lambda col : col-col.mean()/col.std()
 outliers = lambda col : (col < col.quantile(.9)) | (col > col.quantile(0.1))
 nodes.x = normo(nodes.x) * 10000
@@ -74,17 +75,18 @@ output_dict = {
     'edges' : edges.to_dict(orient='records')
 }
 
-with open('/home/burtenshaw/now/potter_kg/app/src/data.json', 'w') as f:
+with open('/home/ben/now/potter_graph/app/src/data.json', 'w') as f:
     d = json.dumps(output_dict)
 
     json.dump(d, f)
 # %%
 # making node types
 
+idm = lambda x : '#%s' % x
 _life_stages = nodes.type.drop_duplicates().to_list()
 node_map = pd.DataFrame(index=_life_stages)
 node_map['typeText'] = _life_stages
-node_map['shapeId'] = node_map.typeText.apply(lambda x : '#%s' % x)
+node_map['shapeId'] = node_map.typeText.apply(idm)
 node_map['color'] = palettes.magma(len(node_map))
 # nodes = nodes.merge(node_map, how='left', left_on='type', right_index=True)
 # %%
@@ -92,11 +94,11 @@ node_map['color'] = palettes.magma(len(node_map))
 
 _clusters = edges.edge.drop_duplicates().to_list()
 edge_map = pd.DataFrame(index=_clusters)
-edge_map['typeText'] = ['cluster%s' % int(x) for x in _clusters]
-edge_map['shapeId'] = edge_map.typeText.apply(lambda x : '#%s' % x)
+edge_map['typeText'] = [clu(x) for x in _clusters]
+edge_map['shapeId'] = edge_map.typeText.apply(idm)
 edge_map['color'] = palettes.viridis(len(edge_map))
 # edges = edges.merge(edge_map, how='left', left_on='edge', right_index=True)
-# edge_map.index = edge_map['shapeId']
+edge_map.index = edge_map['typeText']
 # %%
 
 config_dict = {
@@ -105,7 +107,7 @@ config_dict = {
     'EdgeTypes' : edge_map.to_dict(orient='records')
 }
 
-with open('/home/burtenshaw/now/potter_kg/app/src/config.json', 'w') as f:
+with open('/home/ben/now/potter_graph/app/src/config.json', 'w') as f:
     d = json.dumps(config_dict)
     json.dump(d, f)
     # %%

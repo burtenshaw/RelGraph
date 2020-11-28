@@ -8,3 +8,4 @@ spektral
 .vscode
 _.csv
 data/dense_relations.csv
+app/node_module
