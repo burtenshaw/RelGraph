@@ -9,6 +9,8 @@ Build a knowledge graph of relations between characters, and map their relations
 - [x] cluster using umap
 - [x] represent relations
 - [x] build network
+- [ ] create representation of cluster relations
+
 - [ ] visualise networks of relations by age / character
 
 # questions for lindsey

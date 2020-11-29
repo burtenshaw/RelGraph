@@ -13,8 +13,14 @@ import json
 
 data_dir = '/home/ben/now/potter_graph/'
 
-# cluster_top_sentnces = pd.read_pickle(data_dir + 'data/cluster_sent_df.bin')
+cluster_top_sentences = pd.read_pickle(data_dir + 'data/cluster_sent_df.bin')
 df = pd.read_pickle(data_dir + 'data/clustered_26_11_2020.bin')
+
+df['entity_chunk'] = df[['source','chunk','target']]\
+                    .dropna()\
+                        .apply( lambda row : ' '.join(row.to_list())\
+                                 if pd.notna(row.chunk) and len(row.chunk) > 2\
+                                     else np.nan, axis = 1).dropna().drop_duplicates()
 
 age_stages =[
             'infant',
@@ -52,7 +58,7 @@ edges = edges[edges.source.map(lambda x : x in nodes.index)]\
 G=nx.from_pandas_edgelist(edges, "source", "target", 
                           edge_attr=True)
 
-pos = pd.DataFrame(nx.spring_layout(G)).T
+pos = pd.DataFrame(nx.circular_layout(G)).T
 pos.columns = ['x', 'y']
 
 nodes = pos.merge(nodes, how='left', left_index=True, right_index=True)
@@ -66,8 +72,8 @@ clu = lambda x : 'cluster%s' % int(x)
 edges['type'] = edges.edge.apply(clu)
 normo = lambda col : col-col.mean()/col.std()
 outliers = lambda col : (col < col.quantile(.9)) | (col > col.quantile(0.1))
-nodes.x = normo(nodes.x) * 10000
-nodes.y = normo(nodes.y) * 10000
+nodes.x = normo(nodes.x) * 1000
+nodes.y = normo(nodes.y) * 1000
 nodes.x = nodes[outliers(nodes.x)].x
 nodes.y = nodes[outliers(nodes.y)].y
 
@@ -93,24 +99,64 @@ edge_map['color'] = palettes.viridis(len(edge_map))
 edge_map.index = edge_map['typeText']
 # %%
 
-output_dict = {
-    'nodes' : nodes.to_dict(orient='records'),
-    'edges' : edges.to_dict(orient='records')
-}
+def write_data(nodes, edges, node_map, edge_map, clusters = []):
+
+    if clusters != []:
+        print(  clusters)
+        edges = edges[edges.type.map(lambda x : x in clusters)]
+        nodes = nodes.loc[edges.target].drop_duplicates()\
+                    .dropna()\
+                    .append(nodes.loc[edges.source].drop_duplicates()\
+                        .dropna())
+        
+    output_dict = {
+        'nodes' : nodes.to_dict(orient='records'),
+        'edges' : edges.to_dict(orient='records')
+    }
+
+
+    config_dict = {
+        'NodeTypes' : node_map.to_dict(orient='records'),
+        'NodeSubtypes': {},
+        'EdgeTypes' : edge_map.to_dict(orient='records')
+    }
+
+
+    print(edges.index)
+
+    return {'data' : output_dict, 'config' : config_dict}
+    # %%
+
+packet = write_data(nodes, edges, node_map, edge_map)
 
 with open('/home/ben/now/potter_graph/app/src/data.json', 'w') as f:
-    d = json.dumps(output_dict)
-
+    d = json.dumps(packet['data'])
     json.dump(d, f)
-
-
-config_dict = {
-    'NodeTypes' : node_map.to_dict(orient='records'),
-    'NodeSubtypes': {},
-    'EdgeTypes' : edge_map.to_dict(orient='records')
-}
 
 with open('/home/ben/now/potter_graph/app/src/config.json', 'w') as f:
-    d = json.dumps(config_dict)
+    d = json.dumps(packet['config'])
     json.dump(d, f)
-    # %%
+
+
+from flask import Flask
+from flask import request, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+app.config["DEBUG"] = True
+
+@app.route('/cluster', methods=['GET','POST'])
+def home():
+    clusters = request.json
+    packet = write_data(nodes, edges, node_map, edge_map, clusters)
+    packet = jsonify(packet)
+    return packet
+
+
+CORS(app)
+
+app.run(host='localhost', port=5001)
+
+
+
+# %%

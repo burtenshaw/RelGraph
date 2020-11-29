@@ -21,14 +21,17 @@ tokenizer = nlp.Defaults.create_tokenizer(nlp)
 
 output_notebook()
 
-df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
-ENTITY_CHUNKS = df[['source','chunk','target']]\
+sentences_df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
+
+
+entity_chunk_df = df[['source','chunk','target']]\
                     .dropna()\
                         .apply( lambda row : ' '.join(row.to_list())\
                                  if pd.notna(row.chunk) and len(row.chunk) > 2\
-                                     else np.nan, axis = 1).dropna().drop_duplicates()\
-                                         .to_list()
+                                     else np.nan, axis = 1).dropna().drop_duplicates()
 
+
+ENTITY_CHUNKS = entity_chunk_df.to_list()
 #%%
 
 def Kmeans_clusters(text,c):

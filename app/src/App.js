@@ -4,7 +4,9 @@ import { InteractiveForceGraph, ForceGraph, ForceGraphNode, ForceGraphLink} from
 import Container from 'react-bootstrap/Container';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
-import PotterConfig from './Config';
+import DataBuilder from './Config';
+import Col from 'react-bootstrap/Col';
+import Row from 'react-bootstrap/Row';
 
 import {
   GraphView, // required
@@ -17,8 +19,7 @@ import {
   GraphUtils // optional, useful utility functions
 } from 'react-digraph';
 
-
-var data = JSON.parse(require('./data.json'));
+// var data = JSON.parse(require('./data.json'));
 
 const NODE_KEY = "id"       // Allows D3 to correctly update DOM
 
@@ -28,26 +29,34 @@ class Graph extends React.Component {
     super(props);
 
     this.state = {
-      graph: data,
-      selected: {}
+      data: null,
+      config: null,
+      selected: {},
+      graph: <div>{'no graph'}</div>
     }
+    this.handleCallback = this.handleCallback.bind(this)
+    this.componentDidUpdate = this.componentDidUpdate.bind(this)
   }
 
   /* Define custom graph editing methods here */
+  handleCallback = (childData) =>{
+    this.setState({
+                  graph: null,
+                  data: childData.data,
+                  config: childData.config})
+  }
 
-  render() {
-    const nodes = this.state.graph.nodes;
-    const edges = this.state.graph.edges;
-    const selected = this.state.selected;
-
-    const NodeTypes = PotterConfig.NodeTypes;
-    const NodeSubtypes = PotterConfig.NodeSubtypes;
-    const EdgeTypes = PotterConfig.EdgeTypes;
-
-    return (
-      <Container id='graph' style={{height: '1000px'}}>
-
-        <GraphView  ref='GraphView'
+  componentDidUpdate () {
+    if(this.state.data){
+      var nodes = this.state.data.nodes;
+      var edges = this.state.data.edges;
+      var selected = this.state.selected;
+  
+      var NodeTypes = this.state.config.NodeTypes;
+      var NodeSubtypes = this.state.config.NodeSubtypes;
+      var EdgeTypes = this.state.config.EdgeTypes;
+      var graph = <GraphView  
+                    // ref='GraphView'
                     nodeKey={NODE_KEY}
                     nodes={nodes}
                     edges={edges}
@@ -63,6 +72,23 @@ class Graph extends React.Component {
                     onCreateEdge={this.onCreateEdge}
                     onSwapEdge={this.onSwapEdge}
                     onDeleteEdge={this.onDeleteEdge}/>
+                    
+      this.setState({data:null,
+                    graph: graph})
+    } 
+  }
+
+  render() {
+    return (
+      <Container id='graph' style={{height: '1000px'}}>
+        <Row>
+          <Col>
+          <DataBuilder parentCallback = {this.handleCallback} />
+          </Col>
+          <Col>
+          {this.state.graph}
+          </Col>
+        </Row>
       </Container>
     );
   }
