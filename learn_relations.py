@@ -9,7 +9,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, util
 import seaborn as sns
 from bokeh.plotting import figure, output_file, show, output_notebook
-
+import sys
 import umap
 import hdbscan
 # import umap.plot
@@ -32,103 +32,92 @@ entity_chunk_df = df[['source','chunk','target']]\
 
 
 ENTITY_CHUNKS = entity_chunk_df.to_list()
-#%%
+# #%%
+# if 'kmeans' in sys.args:
+#     def Kmeans_clusters(text,c):
+#         vec = TfidfVectorizer(tokenizer=tokenizer, 
+#         stop_words='english', use_idf=True)
+#         matrix = vec.fit_transform(text)
+#         km = KMeans(n_clusters=c)
+#         km.fit(matrix)
+#         return km.labels_
 
-def Kmeans_clusters(text,c):
-    vec = TfidfVectorizer(tokenizer=tokenizer, 
-    stop_words='english', use_idf=True)
-    matrix = vec.fit_transform(text)
-    km = KMeans(n_clusters=c)
-    km.fit(matrix)
-    return km.labels_
+#     df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
+# # %%
+# # do bert embeddings
 
-df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
-# %%
-# do bert embeddings
-model = SentenceTransformer('distilbert-base-nli-mean-tokens')
-BERT_embeddings = model.encode(ENTITY_CHUNKS)
-#%%
+# if 'bert' in sys.args:
+#     model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+#     BERT_embeddings = model.encode(ENTITY_CHUNKS)
 
-def build_clusters(umap_embeddings, n_neighbors, n_components, min_cluster_size):
+#     def build_clusters(umap_embeddings, n_neighbors, n_components, min_cluster_size):
 
-    # umap clusters of bert embeddings
+#         # umap clusters of bert embeddings
 
-    cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
-                            metric='euclidean',                      
-                            cluster_selection_method='eom').fit(umap_embeddings)
+#         cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
+#                                 metric='euclidean',                      
+#                                 cluster_selection_method='eom').fit(umap_embeddings)
 
-    color_palette = sns.color_palette("Spectral", n_colors=cluster.labels_.max()+1)
+#         color_palette = sns.color_palette("Spectral", n_colors=cluster.labels_.max()+1)
 
-    cluster_colors = [color_palette[x] if x >= 0
-                    else (0.5, 0.5, 0.5)
-                    for x in cluster.labels_]
+#         cluster_colors = [color_palette[x] if x >= 0
+#                         else (0.5, 0.5, 0.5)
+#                         for x in cluster.labels_]
 
-    cluster_member_colors = [sns.desaturate(x, p) for x, p in
-                            zip(cluster_colors, cluster.probabilities_)]
-    
-    plt.scatter(*umap_embeddings.T, s=50, linewidth=0, c=cluster_member_colors, alpha=0.25)
+#         cluster_member_colors = [sns.desaturate(x, p) for x, p in
+#                                 zip(cluster_colors, cluster.probabilities_)]
+        
+#         plt.scatter(*umap_embeddings.T, s=50, linewidth=0, c=cluster_member_colors, alpha=0.25)
 
-    plt.show()
+#         plt.show()
 
-    cluster.condensed_tree_.plot()
-    plt.show()
+#         cluster.condensed_tree_.plot()
+#         plt.show()
 
+#     n_neighbors = 8
+#     n_components = 2
+#     min_cluster_size = 100
+#     min_samples = 10
 
-# for n_components in [2]:
-#     print(' Number of components %s' % n_components)
+#     umap_embeddings = umap.UMAP(n_neighbors=n_neighbors, 
+#                         n_components=n_components, 
+#                         metric='cosine').fit_transform(BERT_embeddings)
+#     #%%
+#     cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
+#                             metric='euclidean',                      
+#                             cluster_selection_method='eom',
+#                             min_samples = min_samples,
+#                             gen_min_span_tree=True)
 
-#     for n_neighbors in [4,6,8]:
-#         print(' Nearest neighbors %s ' % n_neighbors)
-#         umap_embeddings = umap.UMAP(n_neighbors=n_neighbors, 
-#                             n_components=n_components, 
-#                             metric='cosine').fit_transform(BERT_embeddings)
-    
-#         for min_cluster_size in [15,30,45]:
-#             print('Minimum cluster size %s' % min_cluster_size)
-#             build_clusters(umap_embeddings, n_neighbors, n_components, min_cluster_size)
+#     # %%
+#     x = umap_embeddings[:1000,[0]]
+#     y = umap_embeddings[:1000,[1]]
 
-n_neighbors = 8
-n_components = 2
-min_cluster_size = 100
-min_samples = 10
+#     big_palette = palettes.Turbo256 * 2
 
-umap_embeddings = umap.UMAP(n_neighbors=n_neighbors, 
-                    n_components=n_components, 
-                    metric='cosine').fit_transform(BERT_embeddings)
-#%%
-cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
-                        metric='euclidean',                      
-                        cluster_selection_method='eom',
-                        min_samples = min_samples,
-                        gen_min_span_tree=True)
+#     cluster_colors = [big_palette[col]
+#                     if col >= 0 else (0.5, 0.5, 0.5) for col, sat in
+#                     zip(cluster.labels_, cluster.probabilities_)][:1000]
+#     # %%
+#     p = figure(plot_width=800, plot_height=800)
 
-# %%
-x = umap_embeddings[:1000,[0]]
-y = umap_embeddings[:1000,[1]]
+#     # add a circle renderer with a size, color, and alpha
+#     p.scatter(x.flatten(),y.flatten(), color = cluster_colors, size=10, alpha=0.5)
 
-big_palette = palettes.Turbo256 * 2
-
-cluster_colors = [big_palette[col]
-                  if col >= 0 else (0.5, 0.5, 0.5) for col, sat in
-                  zip(cluster.labels_, cluster.probabilities_)][:1000]
-# %%
-p = figure(plot_width=800, plot_height=800)
-
-# add a circle renderer with a size, color, and alpha
-p.scatter(x.flatten(),y.flatten(), color = cluster_colors, size=10, alpha=0.5)
-
-# show the results
-show(p)
+#     # show the results
+#     show(p)
 
 
 
-#%%
-df['BERT_UMAP_cluster'] = cluster.fit_predict(umap_embeddings)
+#     #%%
+#     df['BERT_UMAP_cluster'] = cluster.fit_predict(umap_embeddings)
 
-#%%
+# #%%
 
 # FAST CLUSTERING
-
+# if 'fast' in sys.args:
+model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+BERT_embeddings = model.encode(ENTITY_CHUNKS)
 
 def community_detection(embeddings, threshold=0.75, min_community_size=10, init_max_size=1000):
     """
@@ -190,7 +179,7 @@ def community_detection(embeddings, threshold=0.75, min_community_size=10, init_
 
     return unique_communities
 # %%
-clusters = community_detection(BERT_embeddings, min_community_size=25, threshold=0.75)
+clusters = community_detection(BERT_embeddings, min_community_size=100, threshold=0.7)
 # %%
 
 #Print all cluster / communities
@@ -207,6 +196,6 @@ for i, cluster in enumerate(clusters):
 # %%
 cluster_sent_df = pd.DataFrame(cluster_sentences)
 # %%
-# df.to_pickle('/home/burtenshaw/now/potter_kg/data/clustered_26_11_2020.bin')
+    # df.to_pickle('/home/burtenshaw/now/potter_kg/data/clustered_26_11_2020.bin')
 cluster_sent_df.to_pickle('/home/burtenshaw/now/potter_kg/data/cluster_sent_df.bin')
 # %%

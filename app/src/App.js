@@ -1,5 +1,6 @@
 // import logo from './logo.svg';
 import React from 'react';
+import { unmountComponentAtNode } from 'react-dom';
 import { InteractiveForceGraph, ForceGraph, ForceGraphNode, ForceGraphLink} from 'react-vis-force';
 import Container from 'react-bootstrap/Container';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -18,6 +19,7 @@ import {
   BwdlTransformer, // optional, Example JSON transformer
   GraphUtils // optional, useful utility functions
 } from 'react-digraph';
+import { Button } from 'react-bootstrap';
 
 // var data = JSON.parse(require('./data.json'));
 
@@ -27,72 +29,119 @@ class Graph extends React.Component {
 
   constructor(props) {
     super(props);
-
+    var config = JSON.parse(require('./config.json'));
+    var data = JSON.parse(require('./data.json'));
     this.state = {
-      data: null,
-      config: null,
-      selected: {},
-      graph: <div>{'no graph'}</div>
+      graph: data,
+      config: this.buildconfig(config),
+      selected: {}
     }
     this.handleCallback = this.handleCallback.bind(this)
     this.componentDidUpdate = this.componentDidUpdate.bind(this)
+    // this.onSelectPanNode = this.onSelectPanNode.bind(this)
+    // this.onSelectEdge = this.onSelectEdge.bind(this)
+    // this.componentDidMount = this.componentDidMount.bind(this)
+
+    this.GraphView = React.createRef();
+
   }
 
-  /* Define custom graph editing methods here */
+  componentDidUpdate() {
+    if (this.state.newQuery) {
+      // this.setState({ data : {nodes : null, selected : null, edge : null}})
+      this.setState({newQuery : false});
+      
+      var graph = this.state.graph;
+
+      var newEdges = this.state.graph.edges.filter(e => !this.state.query.includes(e.type));
+      console.log(newEdges.length);
+      var deleteEdgeIds = this.state.graph.edges.filter(e => this.state.query.includes(e.type))
+      console.log(deleteEdgeIds.length);
+
+      deleteEdgeIds.map( edge => {
+        this.GraphView.deleteEdgeBySourceTarget(edge.source, edge.target)
+
+      })
+    }
+  }
+
+  /* Define custom graph editing metho  ds here */
   handleCallback = (childData) =>{
-    this.setState({
-                  graph: null,
-                  data: childData.data,
-                  config: childData.config})
+    this.setState({query: childData.query, newQuery : true});
+
   }
 
-  componentDidUpdate () {
-    if(this.state.data){
-      var nodes = this.state.data.nodes;
-      var edges = this.state.data.edges;
-      var selected = this.state.selected;
-  
-      var NodeTypes = this.state.config.NodeTypes;
-      var NodeSubtypes = this.state.config.NodeSubtypes;
-      var EdgeTypes = this.state.config.EdgeTypes;
-      var graph = <GraphView  
-                    // ref='GraphView'
-                    nodeKey={NODE_KEY}
-                    nodes={nodes}
-                    edges={edges}
-                    selected={selected}
-                    nodeTypes={NodeTypes}
-                    nodeSubtypes={NodeSubtypes}
-                    edgeTypes={EdgeTypes}
-                    onSelectNode={this.onSelectNode}
-                    onCreateNode={this.onCreateNode}
-                    onUpdateNode={this.onUpdateNode}
-                    onDeleteNode={this.onDeleteNode}
-                    onSelectEdge={this.onSelectEdge}
-                    onCreateEdge={this.onCreateEdge}
-                    onSwapEdge={this.onSwapEdge}
-                    onDeleteEdge={this.onDeleteEdge}/>
-                    
-      this.setState({data:null,
-                    graph: graph})
-    } 
+  buildconfig(config) {
+        
+    var NodeTypes = {}
+
+    config.NodeTypes.map( type => {
+        type.shape =  (
+                <symbol viewBox="0 0 100 100" id={type.typeText} key="0">
+                    <circle cx="50" cy="50" r="45" style={{ color : '#ffffff' , 
+                                                            fill : type.color}} ></circle>
+                </symbol>
+                )
+        NodeTypes[type.typeText] = type
+        
+    })
+    
+    var EdgeTypes = {}
+    
+    config.EdgeTypes.map( type => {
+        type.shape = (
+                <symbol viewBox="0 0 200 200" id={type.typeText} key="0" label_from = {type.typeText}>
+                    <circle cx="100" cy="100" r="45" fill={type.color}></circle>
+                </symbol>
+        )
+        EdgeTypes[type.typeText] = type
+    })
+    
+    var PotterConfig =  {
+        NodeTypes: NodeTypes,
+        NodeSubtypes: {},
+        EdgeTypes: EdgeTypes
+      }
+      
+    return PotterConfig;
   }
 
   render() {
+
     return (
-      <Container id='graph' style={{height: '1000px'}}>
+      <Container id='graph' style={{height: '100%'}}>
         <Row>
-          <Col>
-          <DataBuilder parentCallback = {this.handleCallback} />
+          <Col md={6}>
+            <DataBuilder ref={this.GraphView} parentCallback = {this.handleCallback} />
           </Col>
-          <Col>
-          {this.state.graph}
+          <Col md={6}>
+            <GraphView  
+              ref={el => (this.GraphView = el)}
+              nodeKey={NODE_KEY}
+              nodes={this.state.graph.nodes}
+              edges={this.state.graph.edges}
+              selected={this.state.selected}
+              nodeTypes={this.state.config.NodeTypes}
+              nodeSubtypes={this.state.config.NodeSubtypes}
+              edgeTypes={this.state.config.EdgeTypes}
+              onSelectNode={this.onSelectNode}
+              onCreateNode={this.onCreateNode}
+              onUpdateNode={this.onUpdateNode}
+              onDeleteNode={this.onDeleteNode}
+              onSelectEdge={this.onSelectEdge}
+              onCreateEdge={this.onCreateEdge}  
+              onSwapEdge={this.onSwapEdge}
+              onDeleteEdge={this.onDeleteEdge}
+              layoutEngineType={'SnapToGrid'}/>
           </Col>
         </Row>
+        
       </Container>
     );
   }
 
 }
+
+
 
 export default Graph;

@@ -1,8 +1,8 @@
-# plan 
+# Plan 
 
-Build a knowledge graph of relations between characters, and map their relations based on learnt common relations. 
+Build a knowledge graph of relations between characters, and map the relations between character age groups based on learnt relation types. 
 
-# steps :
+# TODO :
 
 - [x] parse entity sentences using annotation and neural corefernece
 - [x] embed using bert 
@@ -10,10 +10,13 @@ Build a knowledge graph of relations between characters, and map their relations
 - [x] represent relations
 - [x] build network
 - [ ] create representation of cluster relations
+    - [ ] group ages
+    - [ ] filter relations
+    - [ ] highlight entities
+- [ ] visualise networks of relations by age / character  
+- [ ] add named entity recognition
 
-- [ ] visualise networks of relations by age / character
-
-# questions for lindsey
+# Questions for Lindsey
 
 have you down any pos / coref work before?
 

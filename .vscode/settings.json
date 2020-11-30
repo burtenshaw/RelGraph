@@ -1,4 +1,4 @@
 {
-    "jupyter.jupyterServerType": "local",
+    "jupyter.jupyterServerType": "remote",
     "git.ignoreLimitWarning": true
 }
