@@ -2,6 +2,10 @@
 
 Build a knowledge graph of relations between characters, and map the relations between character age groups based on learnt relation types. 
 
+# Demo
+
+[Visualisation Demo](https://pottergraph.herokuapp.com/)
+
 # TODO :
 
 - [x] parse entity sentences using annotation and neural corefernece
@@ -9,11 +13,11 @@ Build a knowledge graph of relations between characters, and map the relations b
 - [x] cluster using umap
 - [x] represent relations
 - [x] build network
-- [ ] create representation of cluster relations
-    - [ ] group ages
-    - [ ] filter relations
-    - [ ] highlight entities
-- [ ] visualise networks of relations by age / character  
+- [x] create representation of cluster relations
+    - [x] group ages
+    - [x] filter relations
+    - [x] highlight entities
+- [x] visualise networks of relations by age / character  
 - [ ] add named entity recognition
 
 <!-- # Questions for Lindsey
