@@ -36,3 +36,17 @@
     transform: rotate(360deg);
   }
 }
+
+
+tspan {
+  font-size: 50px;
+}
+
+.col, .row {
+  margin: 20px 0;
+  padding: 0;
+}
+
+.tab-content {
+  margin: 0 !important;
+}

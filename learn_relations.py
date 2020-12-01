@@ -21,8 +21,7 @@ tokenizer = nlp.Defaults.create_tokenizer(nlp)
 
 output_notebook()
 
-sentences_df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
-
+df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
 
 entity_chunk_df = df[['source','chunk','target']]\
                     .dropna()\
@@ -30,102 +29,43 @@ entity_chunk_df = df[['source','chunk','target']]\
                                  if pd.notna(row.chunk) and len(row.chunk) > 2\
                                      else np.nan, axis = 1).dropna().drop_duplicates()
 
-
 ENTITY_CHUNKS = entity_chunk_df.to_list()
-# #%%
-# if 'kmeans' in sys.args:
-#     def Kmeans_clusters(text,c):
-#         vec = TfidfVectorizer(tokenizer=tokenizer, 
-#         stop_words='english', use_idf=True)
-#         matrix = vec.fit_transform(text)
-#         km = KMeans(n_clusters=c)
-#         km.fit(matrix)
-#         return km.labels_
 
-#     df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
-# # %%
-# # do bert embeddings
-
-# if 'bert' in sys.args:
-#     model = SentenceTransformer('distilbert-base-nli-mean-tokens')
-#     BERT_embeddings = model.encode(ENTITY_CHUNKS)
-
-#     def build_clusters(umap_embeddings, n_neighbors, n_components, min_cluster_size):
-
-#         # umap clusters of bert embeddings
-
-#         cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
-#                                 metric='euclidean',                      
-#                                 cluster_selection_method='eom').fit(umap_embeddings)
-
-#         color_palette = sns.color_palette("Spectral", n_colors=cluster.labels_.max()+1)
-
-#         cluster_colors = [color_palette[x] if x >= 0
-#                         else (0.5, 0.5, 0.5)
-#                         for x in cluster.labels_]
-
-#         cluster_member_colors = [sns.desaturate(x, p) for x, p in
-#                                 zip(cluster_colors, cluster.probabilities_)]
-        
-#         plt.scatter(*umap_embeddings.T, s=50, linewidth=0, c=cluster_member_colors, alpha=0.25)
-
-#         plt.show()
-
-#         cluster.condensed_tree_.plot()
-#         plt.show()
-
-#     n_neighbors = 8
-#     n_components = 2
-#     min_cluster_size = 100
-#     min_samples = 10
-
-#     umap_embeddings = umap.UMAP(n_neighbors=n_neighbors, 
-#                         n_components=n_components, 
-#                         metric='cosine').fit_transform(BERT_embeddings)
-#     #%%
-#     cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
-#                             metric='euclidean',                      
-#                             cluster_selection_method='eom',
-#                             min_samples = min_samples,
-#                             gen_min_span_tree=True)
-
-#     # %%
-#     x = umap_embeddings[:1000,[0]]
-#     y = umap_embeddings[:1000,[1]]
-
-#     big_palette = palettes.Turbo256 * 2
-
-#     cluster_colors = [big_palette[col]
-#                     if col >= 0 else (0.5, 0.5, 0.5) for col, sat in
-#                     zip(cluster.labels_, cluster.probabilities_)][:1000]
-#     # %%
-#     p = figure(plot_width=800, plot_height=800)
-
-#     # add a circle renderer with a size, color, and alpha
-#     p.scatter(x.flatten(),y.flatten(), color = cluster_colors, size=10, alpha=0.5)
-
-#     # show the results
-#     show(p)
+results = pd.DataFrame()
+results['sentences'] = entity_chunk_df
 
 
+def Kmeans_clusters(text,c):
+    vec = TfidfVectorizer(tokenizer=tokenizer, 
+    stop_words='english', use_idf=True)
+    matrix = vec.fit_transform(text)
+    km = KMeans(n_clusters=c)
+    km.fit(matrix)
+    return km.labels_
 
-#     #%%
-#     df['BERT_UMAP_cluster'] = cluster.fit_predict(umap_embeddings)
+def umap_hdbscan(ENTITY_CHUNKS, model, n_neighbors = 8, n_components = 2, min_cluster_size = 100, min_samples = 10):
 
-# #%%
+    BERT_embeddings = model.encode(ENTITY_CHUNKS)
+
+    umap_embeddings = umap.UMAP(n_neighbors=n_neighbors, 
+                        n_components=n_components, 
+                        metric='cosine').fit_transform(BERT_embeddings)
+    
+    cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
+                            metric='euclidean',                      
+                            cluster_selection_method='eom',
+                            min_samples = min_samples,
+                            gen_min_span_tree=True)
+
+    predictions = cluster.fit_predict(umap_embeddings)
+
+    return predictions
+
 
 # FAST CLUSTERING
-# if 'fast' in sys.args:
-model = SentenceTransformer('distilbert-base-nli-mean-tokens')
-BERT_embeddings = model.encode(ENTITY_CHUNKS)
+def community_detection(ENTITY_CHUNKS, model, threshold=0.75, min_community_size=10, init_max_size=1000):
 
-def community_detection(embeddings, threshold=0.75, min_community_size=10, init_max_size=1000):
-    """
-    Function for Fast Community Detection
-    Finds in the embeddings all communities, i.e. embeddings that are close (closer than threshold).
-    Returns only communities that are larger than min_community_size. The communities are returned
-    in decreasing order. The first element in each list is the central point in the community.
-    """
+    embeddings = model.encode(ENTITY_CHUNKS)
 
     # Compute cosine similarity scores
     cos_scores = util.pytorch_cos_sim(embeddings, embeddings)
@@ -176,26 +116,40 @@ def community_detection(embeddings, threshold=0.75, min_community_size=10, init_
             unique_communities.append(community)
             for idx in community:
                 extracted_ids.add(idx)
-
+    
     return unique_communities
-# %%
-clusters = community_detection(BERT_embeddings, min_community_size=100, threshold=0.7)
-# %%
 
-#Print all cluster / communities
+def align_predictions(ENTITY_CHUNKS, unique_communities, df):
 
-cluster_sentences = {}
+    cluster_sentences = {}
 
-for i, cluster in enumerate(clusters):
-    print("\nCluster {}, #{} Elements ".format(i+1, len(cluster)))
-    cluster_sentences[i] = ENTITY_CHUNKS[cluster[0]] 
-    for sentence_id in cluster:
-        df.at[sentence_id,'BERT_cos_cluster'] = i
-        print("\t", ENTITY_CHUNKS[sentence_id])
+    for i, cluster in enumerate(unique_communities):
+        print("\nCluster {}, #{} Elements ".format(i+1, len(cluster)))
+        cluster_sentences[i] = ENTITY_CHUNKS[cluster[0]] 
+        for sentence_id in cluster:
+            df.at[sentence_id,'BERT_cos_cluster'] = i
+            df.at[sentence_id,'BERT_top_sentence'] = ENTITY_CHUNKS[cluster[0]] 
+            print("\t", ENTITY_CHUNKS[sentence_id])
 
-# %%
-cluster_sent_df = pd.DataFrame(cluster_sentences)
-# %%
-    # df.to_pickle('/home/burtenshaw/now/potter_kg/data/clustered_26_11_2020.bin')
-cluster_sent_df.to_pickle('/home/burtenshaw/now/potter_kg/data/cluster_sent_df.bin')
+    return df
+#%%
+sys.argv.append('fast')
+#%%
+if 'kmeans' in sys.argv:
+    df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
+
+if 'umap' in sys.argv:
+    model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+    df['umap_predictions'] = umap_hdbscan(ENTITY_CHUNKS, model)
+
+if 'fast' in sys.argv:
+    print('doing fast clusters')
+    model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+    unique_communities = community_detection(ENTITY_CHUNKS, 
+                                model, 
+                                min_community_size=60, 
+                                threshold=0.7)
+    df = align_predictions(ENTITY_CHUNKS, unique_communities, df)
+#%%
+df.to_pickle('/home/burtenshaw/now/potter_kg/data/cluster_sent_df.bin')
 # %%

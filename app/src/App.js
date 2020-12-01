@@ -1,7 +1,9 @@
 // import logo from './logo.svg';
 import React from 'react';
+import Jumbotron from 'react-bootstrap/Jumbotron'
 import { unmountComponentAtNode } from 'react-dom';
 import { InteractiveForceGraph, ForceGraph, ForceGraphNode, ForceGraphLink} from 'react-vis-force';
+
 import Container from 'react-bootstrap/Container';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
@@ -77,8 +79,9 @@ class Graph extends React.Component {
 
     config.NodeTypes.map( type => {
         type.shape =  (
-                <symbol viewBox="0 0 100 100" id={type.typeText} key="0">
-                    <circle cx="50" cy="50" r="45" style={{ color : '#ffffff' , 
+                <symbol style={{fontSize:'20px'}} viewBox="0 0 300 300" id={type.typeText} key="0">
+                    <circle cx="300" cy="300" r="300" style={{ color : '#ffffff' ,
+                                                               width : '150px',
                                                             fill : type.color}} ></circle>
                 </symbol>
                 )
@@ -109,34 +112,34 @@ class Graph extends React.Component {
   render() {
 
     return (
-      <Container id='graph' style={{height: '100%'}}>
-        <Row>
-          <Col md={6}>
-            <DataBuilder ref={this.GraphView} parentCallback = {this.handleCallback} />
-          </Col>
-          <Col md={6}>
-            <GraphView  
-              ref={el => (this.GraphView = el)}
-              nodeKey={NODE_KEY}
-              nodes={this.state.graph.nodes}
-              edges={this.state.graph.edges}
-              selected={this.state.selected}
-              nodeTypes={this.state.config.NodeTypes}
-              nodeSubtypes={this.state.config.NodeSubtypes}
-              edgeTypes={this.state.config.EdgeTypes}
-              onSelectNode={this.onSelectNode}
-              onCreateNode={this.onCreateNode}
-              onUpdateNode={this.onUpdateNode}
-              onDeleteNode={this.onDeleteNode}
-              onSelectEdge={this.onSelectEdge}
-              onCreateEdge={this.onCreateEdge}  
-              onSwapEdge={this.onSwapEdge}
-              onDeleteEdge={this.onDeleteEdge}
-              layoutEngineType={'SnapToGrid'}/>
-          </Col>
-        </Row>
-        
-      </Container>
+      <Jumbotron id='graph' fullWidth={true} style={{height:'100vh'}}>
+              <Row style={{height:'100%'}}>
+                <Col md={4}>
+                  <DataBuilder ref={this.GraphView} parentCallback = {this.handleCallback} />
+                </Col>
+                <Col md={8}>
+                  <GraphView  
+                    ref={el => (this.GraphView = el)}
+                    nodeKey={NODE_KEY}
+                    nodes={this.state.graph.nodes}
+                    edges={this.state.graph.edges}
+                    selected={this.state.selected}
+                    nodeTypes={this.state.config.NodeTypes}
+                    nodeSubtypes={this.state.config.NodeSubtypes}
+                    edgeTypes={this.state.config.EdgeTypes}
+                    onSelectNode={this.onSelectNode}
+                    onCreateNode={this.onCreateNode}
+                    onUpdateNode={this.onUpdateNode}
+                    onDeleteNode={this.onDeleteNode}
+                    onSelectEdge={this.onSelectEdge}
+                    onCreateEdge={this.onCreateEdge}  
+                    onSwapEdge={this.onSwapEdge}
+                    onDeleteEdge={this.onDeleteEdge}
+                    // layoutEngineType={'SnapToGrid'}
+                    />
+                </Col>
+              </Row>
+      </Jumbotron>
     );
   }
 

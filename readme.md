@@ -16,13 +16,13 @@ Build a knowledge graph of relations between characters, and map the relations b
 - [ ] visualise networks of relations by age / character  
 - [ ] add named entity recognition
 
-# Questions for Lindsey
+<!-- # Questions for Lindsey
 
 have you down any pos / coref work before?
 
 do you have other entities or just characters
 
-have you annotated any other books in harry potter series?
+have you annotated any other books in harry potter series? -->
 
 
 # references
