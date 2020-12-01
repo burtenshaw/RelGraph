@@ -7,19 +7,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
-import seaborn as sns
-from bokeh.plotting import figure, output_file, show, output_notebook
 import sys
 import umap
 import hdbscan
-# import umap.plot
-import matplotlib.pyplot as plt
 
 from spacy.lang.en import English
 nlp = English()
 tokenizer = nlp.Defaults.create_tokenizer(nlp)
 
-output_notebook()
 
 df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
 
@@ -133,7 +128,7 @@ def align_predictions(ENTITY_CHUNKS, unique_communities, df):
 
     return df
 #%%
-sys.argv.append('fast')
+# sys.argv.append('fast')
 #%%
 if 'kmeans' in sys.argv:
     df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
