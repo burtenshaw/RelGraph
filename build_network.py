@@ -13,7 +13,7 @@ import argparse
 import re
 
 
-if 'IPyKernelApp' not in get_ipython().config:
+if 'IPKernelApp' in get_ipython().config:
     class DumArgs:
         data = '/home/burtenshaw/now/potter_kg/data/'
         out = '/home/burtenshaw/now/potter_kg/app/src/'
@@ -329,8 +329,3 @@ def write_output(data_dir, data, config, relations, ages, conn):
 
 #%%
 write_output(args.out, packet['data'], packet['config'], relations_dict, ages_dict, conn)
-
-
-# %%
-
-# %%
