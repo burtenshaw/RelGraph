@@ -13,8 +13,6 @@ import numpy as np
 
 ## Spacy example
 
-
-
 data_dir = '/home/burtenshaw/now/potter_kg/data/'
 df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
 
@@ -22,6 +20,8 @@ df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2
 def make_spacy_ents(df):
     """
     convert to spacy format entity tuples, remove duplicates, and non entity text
+
+    remove overlapping entities
 
     TRAIN_DATA = [
         ("Who is Shaka Khan?", {"entities": [(7, 17, "PERSON")]}),
@@ -32,16 +32,19 @@ def make_spacy_ents(df):
     
     df = df.drop_duplicates(subset=['paragraph'])[['paragraph', 'entities']]
     df['entities'] = df.entities.dropna().apply(\
-        lambda x : list({(start, end) : ent.upper() \
+        lambda x : list({(start, end) : ent \
             for ent, (start, end) in x}.items()) if len(x) > 0 else np.nan)\
                 .dropna()\
-                .apply(lambda x : { 'entities': [(start, end, ent) for (start, end), ent in x]})
+                .apply(lambda x : {'entities' : [(start, end, ent) for n, ((start, end), ent) \
+                    in enumerate(x) if start > x[n-1][0][1]]})
 
     return df.dropna().apply(lambda x : (x.paragraph, x.entities), axis = 1).to_list()
 
 
 TRAIN_DATA = make_spacy_ents(df)
 #%%
+
+results = []
 
 @plac.annotations(
     model=("Model name. Defaults to blank 'en' model.", "option", "m", str),
@@ -96,13 +99,16 @@ def main(model=None, output_dir=None, n_iter=100):
                     drop=0.5,  # dropout - make it harder to memorise data
                     losses=losses,
                 )
+            print(itn)
             print("Losses", losses)
 
     # test the trained model
     for text, _ in TRAIN_DATA:
         doc = nlp(text)
-        print("Entities", [(ent.text, ent.label_) for ent in doc.ents])
-        print("Tokens", [(t.text, t.ent_type_, t.ent_iob) for t in doc])
+        e = [(ent.text, ent.label_) for ent in doc.ents]
+        t = [(t.text, t.ent_type_, t.ent_iob) for t in doc]
+        results.append({'text' : t, 'entities': e})
+
 
     # save model to output directory
     if output_dir is not None:
@@ -112,14 +118,8 @@ def main(model=None, output_dir=None, n_iter=100):
         nlp.to_disk(output_dir)
         print("Saved model to", output_dir)
 
-        # test the saved model
-        print("Loading from", output_dir)
-        nlp2 = spacy.load(output_dir)
-        for text, _ in TRAIN_DATA:
-            doc = nlp2(text)
-            print("Entities", [(ent.text, ent.label_) for ent in doc.ents])
-            print("Tokens", [(t.text, t.ent_type_, t.ent_iob) for t in doc])
 
 
 if __name__ == "__main__":
     plac.call(main)
+# %%
