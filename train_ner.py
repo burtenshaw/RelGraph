@@ -13,8 +13,8 @@ import numpy as np
 
 ## Spacy example
 
-data_dir = '/home/burtenshaw/now/potter_kg/data/'
-df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
+data_dir = '/home/ben/now/potter_graph/data/'
+df = pd.read_pickle(data_dir + 'chunk_relations_3_12_2020.bin')
 
 #%%
 def make_spacy_ents(df):
@@ -31,12 +31,9 @@ def make_spacy_ents(df):
     """
     
     df = df.drop_duplicates(subset=['paragraph'])[['paragraph', 'entities']]
-    df['entities'] = df.entities.dropna().apply(\
-        lambda x : list({(start, end) : ent \
-            for ent, (start, end) in x}.items()) if len(x) > 0 else np.nan)\
-                .dropna()\
-                .apply(lambda x : {'entities' : [(start, end, ent) for n, ((start, end), ent) \
-                    in enumerate(x) if start > x[n-1][0][1]]})
+    df['entities'] = df.entities.dropna()\
+                .apply(lambda x : {'entities' : [(start, end, ent) for n, (start, end, ent) \
+                    in enumerate(x) if start > x[n-1][1]]})
 
     return df.dropna().apply(lambda x : (x.paragraph, x.entities), axis = 1).to_list()
 

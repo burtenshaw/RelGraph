@@ -5,40 +5,44 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from bs4 import element
 import re
-import logging;
+import logging
 import numpy as np
-
-import spacy
-from spacy.matcher import Matcher 
-from spacy.tokens import Span 
+import sys
+# import spacy
+# from spacy.matcher import Matcher 
+# from spacy.tokens import Span 
 import os
 from tqdm import tqdm
 
-nlp = spacy.load("en")
+# nlp = spacy.load("en")
 
-data_dir = '/home/burtenshaw/now/potter_kg/data/'
-books_dir = '/home/burtenshaw/now/potter_kg/data/books'
+data_dir = '/home/ben/now/potter_graph/data/'
+books_dir = data_dir + 'books/'
 
-excel_path = data_dir + 'ROWLING_harrypotterandthephilosophersstone_1997.xlsx'
-xml = data_dir + 'ROWLING_harrypotterandthephilosophersstone_1997.xml'
-characters = pd.read_excel(excel_path).set_index('id')
+# excel_path = data_dir + 'ROWLING_harrypotterandthephilosophersstone_1997.xlsx'
+# xml = data_dir + 'books/ROWLING_harrypotterandthephilosophersstone_1997.xml'
+# characters = pd.read_excel(excel_path).set_index('id')
 
 # charcters = pd.read_csv(data_dir + 'characters.csv', index_col=0).set_index('id')
-
+# TODO merge all of the character excels together 
 c_list = characters.index.to_list()
+
+def make_characters_frame(c_df):
+    pass
 
 # characters.to_csv('data/character.csv')
 # %%
+
 def parse_paragraphs(soup):
     paragraphs = soup.find_all('p')
     _collected = []
 
-    for p in tqdm(paragraphs[1:]):
+    for p in tqdm(paragraphs[1:10]):
 
         packet = dict(zip(['book','chapter','page'], p.attrs['n'].split('-')))
         _p = p.text
 
-        entities = []
+        entities = {}
 
         for rs in p.find_all('rs'):
             i = _p.find(rs.text)
@@ -46,13 +50,13 @@ def parse_paragraphs(soup):
             _i = p.text.find(rs.text)
             _j = _i + len(rs.text)
             refs = rs['ref'].split(' ')
-            entities.extend([[r,[_i,_j]] for r in refs])
+            entities.update({(_i,_j) : r for r in refs})
             refs = ' & '.join(refs)
-            _p = _p[:i] + '# %s #' % (refs) + _p[j:]
-
+            _p = _p[:i] + '#_%s_#' % (refs) + _p[j:]
+ 
         packet.update({'paragraph': p.text})
         packet.update({'ref_paragraph': _p})
-        packet.update({'entities': entities})
+        packet.update({'entities': [(start, end, ent) for (start, end), ent in entities.items()]})
         packet.update({'sentences' : p.text.split(' ')})
         packet.update({'ref_sentences': _p.split('.')})
 
@@ -60,7 +64,7 @@ def parse_paragraphs(soup):
 
     return _collected
 
-
+#%%
 def get_relation(sent):
 
     doc = nlp(sent)
@@ -85,13 +89,13 @@ def get_relation(sent):
 is_m = lambda y : True if not y.isspace() and len(y) > 0 and '.' not in y else False
 
 def parse_relations(ents, sent):
-    ents = sorted(ents, key = lambda key : key[1][0])
-    relations_str = []
-    for i, j in zip(ents, ents[1:]):
-        x,y,z = i[0], sent[i[1][1]: j[1][0]], j[0]
-        if is_m(y):
-            relations_str.append({'source':z,'chunk':y,'target':x}) 
-    return relations_str
+    ents = sorted(ents, key = lambda key : key[0])
+    relations_chunks = []
+    for (start,end,source), (_start,_end,target) in zip(ents, ents[1:]):
+        chunk = sent[end : _start]
+        if is_m(chunk):
+            relations_chunks.append({'source':source,'chunk':chunk,'target':target}) 
+    return relations_chunks
 
 def parse_books(books_dir):
     paths = os.listdir(books_dir)
@@ -117,11 +121,13 @@ def parse_books(books_dir):
 df = parse_books(books_dir)
 
 #%%
-# df['linguistic_relation'] = df.relation_chunks.explode().dropna().apply(get_relation)
+if 'characters' in sys.argv:
+    _df = pd.merge(df,characters.add_suffix('_source'), how='left', left_on='source', right_on='id')
+    df = pd.merge(_df,characters.add_suffix('_target'), how='left', left_on='target', right_on='id')
+    df.to_csv(data_dir + 'chunk_relations_26_11_2020.csv')
+    df.to_pickle(data_dir + 'chunk_relations_26_11_2020.bin')
+else:
+    df.to_csv(data_dir + 'chunk_relations_3_12_2020.csv')
+    df.to_pickle(data_dir + 'chunk_relations_3_12_2020.bin')
 
-_df = pd.merge(df,characters.add_suffix('_source'), how='left', left_on='source', right_on='id')
-df = pd.merge(_df,characters.add_suffix('_target'), how='left', left_on='target', right_on='id')
-
-#%%
-df.to_csv(data_dir + 'chunk_relations_26_11_2020.csv')
-df.to_pickle(data_dir + 'chunk_relations_26_11_2020.bin')
+# %%
