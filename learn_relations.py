@@ -9,26 +9,43 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, util
 import sys
 import umap
+import umap.plot
 import hdbscan
-
+import os
+from random import sample 
 from spacy.lang.en import English
 nlp = English()
 tokenizer = nlp.Defaults.create_tokenizer(nlp)
+import matplotlib.pyplot as plt
 
+from string import punctuation
+from spacy.lang.en.stop_words import STOP_WORDS
+#%%
 
-df = pd.read_pickle('/home/burtenshaw/now/potter_kg/data/chunk_relations_26_11_2020.bin')
+n_characters = 20
+from_each_book = 100
 
-entity_chunk_df = df[['source','chunk','target']]\
-                    .dropna()\
-                        .apply( lambda row : ' '.join(row.to_list())\
-                                 if pd.notna(row.chunk) and len(row.chunk) > 2\
-                                     else np.nan, axis = 1).dropna().drop_duplicates()
+data_dir = os.path.join('data')
 
-ENTITY_CHUNKS = entity_chunk_df.to_list()
+df = pd.read_json(os.path.join(data_dir,'PAIRS.json'))
 
-results = pd.DataFrame()
-results['sentences'] = entity_chunk_df
+junk = set([' '] + list(punctuation) + list(STOP_WORDS)) 
 
+df = df.loc[df.chunk.apply(lambda x : {str(t) for t in tokenizer(x)})\
+                    .apply(lambda  x : not x.issubset(junk))]
+
+frequent = df.source_base.value_counts()[:n_characters].index
+
+df = df.loc[df.source_base.map(lambda x : x in frequent) \
+            & \
+            df.target_base.map(lambda x : x in frequent) 
+            ]
+
+df['chunk_len'] = df.chunk.apply(lambda c : len(c.split(' ')))
+df.loc[df.groupby('book').chunk_len.apply(lambda ser : ser.sort_values(ascending=False)[:200]).index.droplevel(0)]
+# df = df.groupby('book').sample(n=from_each_book)
+ENTITY_CHUNKS = df.train_data.apply(lambda x : ''.join(x)).to_list()
+#%%
 
 def Kmeans_clusters(text,c):
     vec = TfidfVectorizer(tokenizer=tokenizer, 
@@ -114,37 +131,125 @@ def community_detection(ENTITY_CHUNKS, model, threshold=0.75, min_community_size
     
     return unique_communities
 
-def align_predictions(ENTITY_CHUNKS, unique_communities, df):
+def align_predictions(unique_communities, s, top_k = None):
 
     cluster_sentences = {}
 
     for i, cluster in enumerate(unique_communities):
         print("\nCluster {}, #{} Elements ".format(i+1, len(cluster)))
-        cluster_sentences[i] = ENTITY_CHUNKS[cluster[0]] 
+        cluster = sample(cluster[:top_k], s)
         for sentence_id in cluster:
-            df.at[sentence_id,'BERT_cos_cluster'] = i
-            df.at[sentence_id,'BERT_top_sentence'] = ENTITY_CHUNKS[cluster[0]] 
-            print("\t", ENTITY_CHUNKS[sentence_id])
+            cluster_sentences[sentence_id] = i 
 
-    return df
+    return cluster_sentences
 #%%
-# sys.argv.append('fast')
-#%%
-if 'kmeans' in sys.argv:
-    df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
+# model = SentenceTransformer('distilbert-base-nli-mean-tokens')
 
-if 'umap' in sys.argv:
-    model = SentenceTransformer('distilbert-base-nli-mean-tokens')
-    df['umap_predictions'] = umap_hdbscan(ENTITY_CHUNKS, model)
+# unique_communities = community_detection(ENTITY_CHUNKS, 
+#                             model, 
+#                             min_community_size=30, 
+#                             threshold=0.88)
 
-if 'fast' in sys.argv:
-    print('doing fast clusters')
-    model = SentenceTransformer('distilbert-base-nli-mean-tokens')
-    unique_communities = community_detection(ENTITY_CHUNKS, 
-                                model, 
-                                min_community_size=60, 
-                                threshold=0.7)
-    df = align_predictions(ENTITY_CHUNKS, unique_communities, df)
+# print(len(unique_communities))
+# cluster_sentences = align_predictions(unique_communities, 10, top_k=20)
+# df['cluster'] = pd.Series(cluster_sentences)
+
+# anno = df.loc[df.cluster > 0].sort_values('cluster')
+
+# with pd.ExcelWriter(os.path.join(data_dir, 'clusters.xlsx')) as writer:
+#     for cluster_id, _df in anno.groupby('cluster'):
+#         _df.to_excel(writer, 'cluster_%s' % cluster_id)
+
+# anno.to_json('data/cluster_sample.json')
 #%%
-df.to_pickle('/home/burtenshaw/now/potter_kg/data/cluster_sent_df.bin')
-# %%
+model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+BERT_embeddings = model.encode(ENTITY_CHUNKS)
+
+n_neighbors = 8
+n_components = 2
+min_dist = .99
+
+print(n_neighbors, n_components, min_dist)
+
+mapper = umap.UMAP(n_neighbors=n_neighbors, 
+            n_components=n_components,
+            min_dist=min_dist,
+            metric='euclidean').fit(BERT_embeddings)
+
+
+umap.plot.connectivity(mapper, show_points=True)
+
+#%%
+mapper = umap.UMAP(n_neighbors=n_neighbors, 
+            n_components=n_components,
+            min_dist=min_dist,
+            metric='euclidean').fit_transform(BERT_embeddings)
+
+min_samples = 6
+min_cluster_size = 15
+
+cluster = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
+                        metric='euclidean',                      
+                        cluster_selection_method='eom',
+                        min_samples = min_samples,
+                        gen_min_span_tree=True)
+
+df['umap_predictions'] =  cluster.fit_predict(mapper)
+print(df.umap_predictions.max())
+
+anno = df.loc[df.umap_predictions > 0].sort_values('umap_predictions')
+with pd.ExcelWriter(os.path.join(data_dir, 'clusters.xlsx')) as writer:
+    for cluster_id, _df in anno.groupby('umap_predictions'):
+        _df.to_excel(writer, 'cluster_%s' % cluster_id)
+
+#%%
+# n_neighbors = [2,4,8,12]
+# n_components = [2,3]
+# min_dist= [.8,.9,.99]
+
+# for n in n_neighbors:
+#     for c in n_components:
+#         for dis in min_dist:
+
+#             print(n, c, dis)
+
+#             u = umap.UMAP(n_neighbors=n, 
+#                         n_components=c,
+#                         min_dist=dis,
+#                         metric='euclidean').fit_transform(BERT_embeddings)
+
+#             fig = plt.figure()
+
+#             if n_components == 1:
+#                 ax = fig.add_subplot(111)
+#                 ax.scatter(u[:,0], range(len(u)), s=0.1, cmap='Spectral')
+#             if n_components == 2:
+#                 ax = fig.add_subplot(111)
+#                 ax.scatter(u[:,0], u[:,1], s=0.1, cmap='Spectral')
+#             if n_components == 3:
+#                 ax = fig.add_subplot(111, projection='3d')
+#                 ax.scatter(u[:,0], u[:,1], u[:,2], s=100, cmap='Spectral')
+
+#             plt.savefig('data/cluster_plots/%s_%s_%s.png' % (n,c,dis))
+
+
+# #%%
+
+# if 'kmeans' in sys.argv:
+#     df['K_Clusters'] = Kmeans_clusters(ENTITY_CHUNKS, 20) 
+
+# if 'umap' in sys.argv:
+#     model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+#     df['umap_predictions'] = umap_hdbscan(ENTITY_CHUNKS, model)
+
+# if 'fast' in sys.argv:
+#     print('doing fast clusters')
+#     model = SentenceTransformer('distilbert-base-nli-mean-tokens')
+#     unique_communities = community_detection(ENTITY_CHUNKS, 
+#                                 model, 
+#                                 min_community_size=60, 
+#                                 threshold=0.7)
+#     df = align_predictions(ENTITY_CHUNKS, unique_communities, df)
+# #%%
+
+# # %%
