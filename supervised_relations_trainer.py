@@ -22,53 +22,30 @@ from transformers import AutoTokenizer
 from transformers import ElectraForTokenClassification, ElectraTokenizerFast
 from datasets import Dataset, DatasetDict
 from datasets import load_metric
-data_dir = os.path.join('data')
-df = pd.read_json(os.path.join(data_dir,'PAIRS.json'))
-cdf = pd.read_json(os.path.join(data_dir,'CHARACTERS_1_2_21.json'))
 
-#%% Add relation info
-# cdf = cdf.set_index(['book', 'id'])
+from lit_world import annotate
 
-# df = df.merge(cdf[['relation to protagonist']]\
-#         .add_prefix('source_'), 
-#         left_on=['book', 'source'],
-#         right_index=True)
+df = pd.DataFrame()
 
-# df = df.merge(cdf[['relation to protagonist']]\
-#         .add_prefix('target_'), 
-#         left_on=['book', 'target'], 
-#         right_index=True)
+series_list = ['potter', 'pullman']
 
-# df = df.loc[df.source_base.map(lambda x : 'harry' in x) \
-#             | \
-#             df.target_base.map(lambda x : 'harry' in x) 
-#             ]
+for series in series_list:
+    data_dir = os.path.join('data', series)
+    _df = pd.read_json(os.path.join(data_dir,'PAIRS.json'))
 
-# df['source_rel'] = df['source_relation to protagonist']
-# df['target_rel'] = df['target_relation to protagonist']
+    rel_dict = {}
 
-# df = df.reset_index()
+    for b in _df.book.drop_duplicates().values:
+        rels = pd.read_excel(os.path.join(data_dir, 'relations_annotated.xlsx'), 
+                sheet_name='book_%s' % b, index_col = 0)
+        rel_dict[b] = rels.to_dict()
 
-# df['y_relation'] = df.dropna(subset=['source_rel', 'target_rel'])\
-#                     .apply(lambda row : (row.source_rel+row.target_rel)\
-#                     .replace('protagonist', '') , axis = 1)
-#%%
-rel_dict = {}
+    _df['y_relation'] = _df.apply(annotate.get_rel, rel_dict = rel_dict, axis = 1)
+    _df.dropna(subset=['y_relation'], inplace = True)
 
-for b in df.book.drop_duplicates().values:
-    rels = pd.read_excel(os.path.join(data_dir, 'relations_annotated.xlsx'), 
-            sheet_name='book_%s' % b, index_col = 0)
-    rel_dict[b] = rels.to_dict()
+    _df['series'] = series
 
-def get_rel(row):
-
-    try:
-        return rel_dict[row.book][row.source_base][row.target_base]
-    except KeyError:
-        return np.nan
-
-df['y_relation'] = df.apply(get_rel, axis = 1)
-df.dropna(subset=['y_relation'], inplace = True)
+    df = pd.concat([df,_df])
 #%% most active
 to_keep = ['friend',
            'adversary',
@@ -87,31 +64,18 @@ df['label'] = df.y_relation.apply(lambda x : label_map[x])
 
 df['sentence'] = df.train_data.apply(lambda x : ''.join(x))
 #%%
-train_index, test_index = train_test_split(
-                                        df.index, 
-                                        test_size=0.33, 
-                                        random_state=42)
+
 
 #%%
 metric = load_metric('glue', "mnli")
 model_checkpoint = 'albert-base-v2'
 batch_size = 16
 tokenizer = AutoTokenizer.from_pretrained(model_checkpoint, use_fast=True)
-
-datasets = DatasetDict()
-
-datasets['train'] = Dataset.from_pandas(df.loc[train_index][['sentence', 'label']])
-datasets['test'] = Dataset.from_pandas(df.loc[test_index][['sentence', 'label']])
-# %%
-def preprocess_function(examples):
-    return tokenizer(examples['sentence'], truncation=True)
-
-encoded_dataset = datasets.map(preprocess_function, batched=False)
-
 num_labels = df.label.max() + 1
 
-model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint, num_labels=num_labels)
-
+# %%
+def preprocess_function(examples):
+    return tokenizer(examples['sentence'], truncation=True, padding=True)
 
 # %%
 # metric_name = "pearson" if task == "stsb" else "matthews_correlation" if task == "cola" else "accuracy"
@@ -132,56 +96,98 @@ def compute_metrics(eval_pred):
     predictions = np.argmax(predictions, axis=1)
     return metric.compute(predictions=predictions, references=labels)
 # %%
-trainer = Trainer(
-    model,
-    args,
-    train_dataset=encoded_dataset["train"],
-    eval_dataset=encoded_dataset['test'],
-    tokenizer=tokenizer,
-    compute_metrics=compute_metrics
-)
+experiments = [
+    {'train' : ['potter','pullman'],'test' : ['potter','pullman']},
+    {'train' : ['potter','pullman'],'test' : ['pullman']},
+    {'train' : ['potter','pullman'],'test' : ['potter']},
+    {'train' : ['potter'],'test' : ['pullman']},
+    {'train' : ['pullman'],'test' : ['pullman']},
+    # {'test' : 'train' :},
+]
 
-# %%
-trainer.train()
-# %%
-trainer.evaluate()
+for exp in experiments:
+
+    run_df = df.loc[df.series.isin(exp['train'] + exp['test'])]
+
+    train_index, test_index = train_test_split(
+                                        run_df.index, 
+                                        test_size=0.33, 
+                                        random_state=42)
+
+    
+    s_test = df.series.isin(exp['test']).index
+
+    test_index = s_test.intersection(test_index)
+
+    print ('Training on %s . %s samples' % (exp['train'], train_index.shape[0]) )
+    print ('Testing on %s . %s samples' % (exp['test'], test_index.shape[0]) )
+
+    file_name = 'train_' + '_'.join(exp['train']) + \
+                '-test_'  + '_'.join(exp['test'])
+
+    print(file_name)    
+
+    datasets = DatasetDict()
+    datasets['train'] = Dataset.from_pandas(run_df.loc[train_index][['sentence', 'label']])
+    datasets['test'] = Dataset.from_pandas(run_df.loc[test_index][['sentence', 'label']])
+    encoded_dataset = datasets.map(preprocess_function, batched=False)
+    model = AutoModelForSequenceClassification.from_pretrained(model_checkpoint, num_labels=num_labels)
+
+    trainer = Trainer(
+        model,
+        args,
+        train_dataset=encoded_dataset["train"],
+        eval_dataset=encoded_dataset['test'],
+        tokenizer=tokenizer,
+        compute_metrics=compute_metrics
+    )
+
+    trainer.train()
+
+    trainer.evaluate()
+
+    predictions, labels, _ = trainer.predict(encoded_dataset['test'])
+    predictions = np.argmax(predictions, axis=1)
+
+    test = run_df.loc[test_index]
+    test['y_pred'] = predictions
+    test['train'] = '_'.join(exp['train'])
+    test['test'] = '_'.join(exp['test'])
+
+    test.reset_index().to_json('data/predictions/%s.json' % file_name)
+
+
+
 #%%
 
-predictions, labels, _ = trainer.predict(encoded_dataset['test'])
-predictions = np.argmax(predictions, axis=1)
+# anno = test.sort_values('cluster')
+# with pd.ExcelWriter(os.path.join(data_dir, 'clusters.xlsx')) as writer:
+#     for cluster_id, _df in anno.groupby('cluster'):
+#         _df.to_excel(writer, label_names[cluster_id])
 
-#%%
-label_names = { n: v for n, v in enumerate(to_keep)}
-
-test = df.loc[test_index]
-test['cluster'] = predictions
-
-#%%
-
-y_pred = test.groupby('source').cluster.agg(lambda x:x.value_counts().index[0]).to_list() + \
-            test.groupby('target').cluster.agg(lambda x:x.value_counts().index[0]).to_list() 
-
-y_true = test.groupby('source').label.first().to_list() + \
-            test.groupby('target').label.first().to_list()
-
-pd.DataFrame(classification_report(y_pred, y_true, output_dict=True))
-
-#%%
-
-anno = test.sort_values('cluster')
-with pd.ExcelWriter(os.path.join(data_dir, 'clusters.xlsx')) as writer:
-    for cluster_id, _df in anno.groupby('cluster'):
-        _df.to_excel(writer, label_names[cluster_id])
+# # %%
+# def get_prediction(sentence):
+#     d = Dataset.from_pandas(pd.DataFrame([{'sentence' : sentence, 'label' : 0}]))
+#     d = d.map(preprocess_function, batched=False)
+#     return np.argmax(trainer.predict(d).predictions)
+# # %%
 
 
+# pd.DataFrame(classification_report(test.cluster, test.label, output_dict=True))
+# # %%
+# pullman_dir = os.path.join('data/pullman')
+# pudf = pd.read_json(os.path.join(pullman_dir,'PAIRS.json'))
+# pudf['label'] = 0
+# pudf['sentence'] = pudf.train_data.apply(lambda x : ''.join(x))
+# pudf = pudf.dropna(subset=['sentence', 'label'])
+# datasets['eval'] = Dataset.from_pandas(pudf[['sentence', 'label']])
+# encoded_eval = datasets['eval'].map(preprocess_function, batched=False)
+# e_predictions, e_labels, _ = trainer.predict(encoded_eval)
+# pudf['pred_y'] = np.argmax(e_predictions, -1)
+
+# #%%
+# pudf.to_json('data/pullman/all_preds.json')
 
 # %%
-def get_prediction(sentence):
-    d = Dataset.from_pandas(pd.DataFrame([{'sentence' : sentence, 'label' : 0}]))
-    d = d.map(preprocess_function, batched=False)
-    return np.argmax(trainer.predict(d).predictions)
-# %%
-from sklearn.metrics import classification_report
 
-pd.DataFrame(classification_report(test.cluster, test.label, output_dict=True))
 # %%
